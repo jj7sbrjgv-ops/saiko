@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>サイコテトリス</title>
+	<style>
+		:root {
+			--bg: radial-gradient(circle at 20% 20%, #1f2a44, #0f1627 60%);
+			--panel: rgba(255, 255, 255, 0.06);
+			--accent: #74f3d5;
+			--accent-2: #f2a34b;
+			--text: #f2f6ff;
+			--grid: #0d1a2f;
+			--cell-border: rgba(255, 255, 255, 0.1);
+			--danger: #ff6b6b;
+			--safe: #7ee0ff;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			min-height: 100vh;
+			font-family: "Noto Sans JP", "Segoe UI", sans-serif;
+			background: var(--bg);
+			color: var(--text);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 24px;
+		}
+
+		.frame {
+			display: grid;
+			grid-template-columns: 320px 240px 240px;
+			gap: 16px;
+			width: 100%;
+			max-width: 960px;
+			backdrop-filter: blur(6px);
+		}
+
+		.panel {
+			background: var(--panel);
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			border-radius: 14px;
+			padding: 14px 16px;
+			box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+		}
+
+		h1 {
+			margin: 0 0 12px;
+			font-size: 22px;
+			letter-spacing: 0.04em;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		h1 span {
+			display: inline-block;
+			padding: 4px 8px;
+			border-radius: 8px;
+			background: linear-gradient(135deg, #82ffe5, #4ae0ff);
+			color: #0b1a2c;
+			font-weight: 700;
+		}
+
+		.board {
+			width: 300px;
+			height: 600px;
+			display: grid;
+			grid-template-columns: repeat(10, 1fr);
+			grid-template-rows: repeat(20, 1fr);
+			background: var(--grid);
+			border-radius: 12px;
+			overflow: hidden;
+			position: relative;
+			border: 1px solid rgba(255, 255, 255, 0.05);
+		}
+
+		.cell {
+			border: 1px solid var(--cell-border);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-weight: 700;
+			color: #0d1a2f;
+			font-size: 16px;
+			text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+			transition: transform 0.08s ease;
+			background: rgba(255, 255, 255, 0.05);
+		}
+
+		.cell.filled {
+			background: linear-gradient(135deg, #7ee0ff, #8ff7c6);
+			transform: translateZ(0);
+		}
+
+		.cell.ghost {
+			opacity: 0.24;
+			background: transparent;
+			border: 1px dashed rgba(255, 255, 255, 0.25);
+			color: rgba(255, 255, 255, 0.35);
+		}
+
+		.infos {
+			display: grid;
+			gap: 10px;
+		}
+
+		.stat {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 8px 10px;
+			border-radius: 10px;
+			background: rgba(255, 255, 255, 0.04);
+			border: 1px solid rgba(255, 255, 255, 0.05);
+			font-size: 14px;
+		}
+
+		.stat strong {
+			font-size: 16px;
+			color: var(--accent);
+		}
+
+		.controls {
+			display: grid;
+			gap: 8px;
+			font-size: 13px;
+		}
+
+		.controls code {
+			background: rgba(255, 255, 255, 0.08);
+			padding: 2px 6px;
+			border-radius: 6px;
+			color: var(--accent);
+		}
+
+		.preview, .next-stack {
+			display: grid;
+			grid-template-columns: repeat(4, 1fr);
+			grid-template-rows: repeat(4, 1fr);
+			width: 120px;
+			height: 120px;
+			gap: 2px;
+			background: rgba(255, 255, 255, 0.03);
+			border-radius: 10px;
+			padding: 6px;
+			border: 1px solid rgba(255, 255, 255, 0.04);
+		}
+
+		.tiny-cell {
+			border-radius: 6px;
+			background: rgba(255, 255, 255, 0.06);
+			border: 1px solid rgba(255, 255, 255, 0.05);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-weight: 700;
+			font-size: 12px;
+			color: #0d1a2f;
+		}
+
+		.buttons {
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+			margin-bottom: 10px;
+		}
+
+		button, select {
+			background: linear-gradient(135deg, #7ee0ff, #8ff7c6);
+			border: none;
+			color: #0d1a2f;
+			padding: 8px 12px;
+			border-radius: 10px;
+			font-weight: 700;
+			cursor: pointer;
+			box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+			transition: transform 0.1s ease, filter 0.2s ease;
+		}
+
+		button:hover, select:hover { filter: brightness(1.08); }
+		button:active, select:active { transform: translateY(1px); }
+
+		.log {
+			margin-top: 8px;
+			min-height: 24px;
+			font-size: 13px;
+			color: var(--accent-2);
+		}
+
+		.mode {
+			display: grid;
+			gap: 8px;
+			font-size: 13px;
+		}
+
+		.badge {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 4px 10px;
+			border-radius: 999px;
+			background: rgba(255, 255, 255, 0.08);
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			font-size: 12px;
+		}
+
+		.pulse {
+			animation: pulse 0.8s ease;
+		}
+
+		@keyframes pulse {
+			0% { transform: scale(1); }
+			50% { transform: scale(1.06); }
+			100% { transform: scale(1); }
+		}
+	</style>
+</head>
+<body>
+	<div class="frame">
+		<div class="panel">
+			<h1><span>ψ</span>サイコテトリス</h1>
+			<div class="buttons">
+				<button id="startBtn">スタート/再開</button>
+				<button id="pauseBtn">一時停止</button>
+				<button id="resetBtn">リセット</button>
+			</div>
+			<div class="board" id="board"></div>
+			<div class="log" id="log"></div>
+		</div>
+
+		<div class="panel infos">
+			<div class="stat">スコア <strong id="score">0</strong></div>
+			<div class="stat">連鎖 <strong id="chain">0</strong></div>
+			<div class="stat">ステージ <strong id="stage">1</strong></div>
+			<div class="stat">落下速度 <strong id="speed">1.00x</strong></div>
+			<div class="mode">
+				<div>モード選択</div>
+				<select id="modeSelect">
+					<option value="score">スコアアタック</option>
+					<option value="stage">ステージ攻略</option>
+				</select>
+				<div class="badge">目標: <span id="target">2000</span></div>
+			</div>
+			<div>
+				<div>次のピース</div>
+				<div class="preview" id="preview"></div>
+			</div>
+			<div>
+				<div>その次</div>
+				<div class="preview" id="preview2"></div>
+			</div>
+			<div class="controls">
+				<div><code>←/→</code> 移動, <code>↓</code> ソフトドロップ</div>
+				<div><code>Z/X</code> 回転, <code>Space</code> ハードドロップ</div>
+				<div><code>R</code> サイコロ振り直し（落下中のみ）</div>
+				<div><code>P</code> ポーズ</div>
+			</div>
+		</div>
+
+		<div class="panel">
+			<h3 style="margin-top:0;">ルール</h3>
+			<ul style="padding-left:18px; line-height:1.5; margin:0 0 10px; font-size:14px;">
+				<li>ブロックに1〜6の数字が付与。</li>
+				<li>落下中に <strong>R</strong> で数字を振り直し。</li>
+				<li>横一列を埋める、または同じ数字を縦横に4連で消去。</li>
+				<li>消去後の落下で再消去すると連鎖。倍率が上昇。</li>
+				<li>盤面最上段に積むとゲームオーバー。</li>
+			</ul>
+			<div class="badge">全消しボーナス +1500</div>
+		</div>
+	</div>
+
+	<script>
+		// 基本定数
+		const COLS = 10;
+		const ROWS = 20;
+		const DROP_BASE = 850; // ms
+		const BOARD_EL = document.getElementById("board");
+		const PREVIEW_EL = document.getElementById("preview");
+		const PREVIEW2_EL = document.getElementById("preview2");
+		const scoreEl = document.getElementById("score");
+		const chainEl = document.getElementById("chain");
+		const stageEl = document.getElementById("stage");
+		const speedEl = document.getElementById("speed");
+		const targetEl = document.getElementById("target");
+		const logEl = document.getElementById("log");
+
+		// テトリミノ形状 (4x4)
+		const SHAPES = {
+			I: [
+				[0, 0, 0, 0],
+				[1, 1, 1, 1],
+				[0, 0, 0, 0],
+				[0, 0, 0, 0]
+			],
+			O: [
+				[0, 1, 1, 0],
+				[0, 1, 1, 0],
+				[0, 0, 0, 0],
+				[0, 0, 0, 0]
+			],
+			T: [
+				[0, 1, 0, 0],
+				[1, 1, 1, 0],
+				[0, 0, 0, 0],
+				[0, 0, 0, 0]
+			],
+			S: [
+				[0, 1, 1, 0],
+				[1, 1, 0, 0],
+				[0, 0, 0, 0],
+				[0, 0, 0, 0]
+			],
+			Z: [
+				[1, 1, 0, 0],
+				[0, 1, 1, 0],
+				[0, 0, 0, 0],
+				[0, 0, 0, 0]
+			],
+			J: [
+				[1, 0, 0, 0],
+				[1, 1, 1, 0],
+				[0, 0, 0, 0],
+				[0, 0, 0, 0]
+			],
+			L: [
+				[0, 0, 1, 0],
+				[1, 1, 1, 0],
+				[0, 0, 0, 0],
+				[0, 0, 0, 0]
+			],
+		};
+
+		// ステージパターン定義
+		const STAGE_PATTERNS = {
+			1: [],
+			2: [
+				[14, null, null, null, null, null, null, null, null, 15],
+				[14, null, null, null, null, null, null, null, null, 15],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+			],
+			3: [
+				[10, 10, null, null, null, null, null, 10, 10, null],
+				[10, 10, null, null, null, null, null, 10, 10, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+			],
+			4: [
+				[12, 12, 12, null, null, null, 12, 12, 12, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+			],
+			5: [
+				[8, null, 8, null, 8, null, 8, null, 8, null],
+				[8, null, 8, null, 8, null, 8, null, 8, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+			],
+			6: [
+				[11, 11, null, 11, 11, 11, 11, null, 11, 11],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+			],
+			7: [
+				[9, null, null, 9, null, null, 9, null, null, 9],
+				[9, null, null, 9, null, null, 9, null, null, 9],
+				[9, null, null, 9, null, null, 9, null, null, 9],
+				[null, null, null, null, null, null, null, null, null, null],
+			],
+			8: [
+				[13, 13, 13, 13, null, 13, 13, 13, 13, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+			],
+		};
+
+		// ゲーム状態
+		let board = createEmptyBoard();
+		let current = null;
+		let bag = [];
+		let nextQueue = [];
+		let isRunning = false;
+		let lastDrop = 0;
+		let dropInterval = DROP_BASE;
+		let score = 0;
+		let stage = 1;
+		let chain = 0;
+		let mode = "score";
+		let targetScore = mode === "stage" ? 2000 : Infinity;
+		let stageBlocks = new Set(); // ステージパターンで配置されたブロックの座標を記録
+
+		// 初期セットアップ
+		createBoardCells();
+		refillQueue();
+		spawnPiece();
+		updateStageAndSpeed();
+		draw();
+
+		// UIイベント
+		document.getElementById("startBtn").addEventListener("click", () => {
+			if (!isRunning) {
+				isRunning = true;
+				lastDrop = performance.now();
+				requestAnimationFrame(loop);
+			}
+		});
+
+		document.getElementById("pauseBtn").addEventListener("click", () => togglePause());
+		document.getElementById("resetBtn").addEventListener("click", () => reset());
+		document.getElementById("modeSelect").addEventListener("change", (e) => {
+			mode = e.target.value;
+			reset();
+		});
+
+		// キー入力
+		window.addEventListener("keydown", (e) => {
+			if (!isRunning) return;
+			switch (e.key.toLowerCase()) {
+				case "arrowleft":
+					move(-1, 0);
+					break;
+				case "arrowright":
+					move(1, 0);
+					break;
+				case "arrowdown":
+					step();
+					break;
+				case "z":
+					rotate(-1);
+					break;
+				case "x":
+					rotate(1);
+					break;
+				case " ":
+					hardDrop();
+					break;
+				case "p":
+					togglePause();
+					break;
+				case "r":
+					rerollNumbers();
+					break;
+				default:
+					break;
+			}
+			draw();
+		});
+
+		function togglePause() {
+			isRunning = !isRunning;
+			if (isRunning) {
+				lastDrop = performance.now();
+				requestAnimationFrame(loop);
+			}
+		}
+
+		function reset() {
+			board = createEmptyBoard();
+			bag = [];
+			nextQueue = [];
+			refillQueue();
+			score = 0;
+			stage = 1;
+			chain = 0;
+			dropInterval = DROP_BASE;
+			targetScore = mode === "stage" ? 2000 : Infinity;
+			applyStagePattern(stage);
+			spawnPiece();
+			updateStageAndSpeed();
+			draw();
+		}
+
+		function applyStagePattern(stageNum) {
+			board = createEmptyBoard();
+			stageBlocks.clear();
+			const pattern = STAGE_PATTERNS[stageNum] || [];
+			const startRow = ROWS - pattern.length;
+			for (let i = 0; i < pattern.length; i++) {
+				for (let j = 0; j < pattern[i].length; j++) {
+					if (pattern[i][j] !== null) {
+						board[startRow + i][j] = pattern[i][j];
+						stageBlocks.add(`${startRow + i},${j}`);
+					}
+				}
+			}
+		}
+
+		function createEmptyBoard() {
+			return Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => null));
+		}
+
+		function createBoardCells() {
+			BOARD_EL.innerHTML = "";
+			for (let i = 0; i < ROWS * COLS; i++) {
+				const div = document.createElement("div");
+				div.className = "cell";
+				BOARD_EL.appendChild(div);
+			}
+		}
+
+		function refillQueue() {
+			const names = Object.keys(SHAPES);
+			if (bag.length === 0) {
+				bag = shuffle([...names]);
+			}
+			while (nextQueue.length < 3) {
+				if (bag.length === 0) bag = shuffle([...names]);
+				nextQueue.push(bag.pop());
+			}
+		}
+
+		function spawnPiece() {
+			const name = nextQueue.shift();
+			refillQueue();
+			const shape = SHAPES[name].map((row) => [...row]);
+			const nums = shape.map((row) => row.map((cell) => (cell ? randDice() : 0)));
+			current = { name, shape, nums, row: 0, col: 3 };
+			if (collides(current, 0, 0)) {
+				isRunning = false;
+				logEl.textContent = "ゲームオーバー";
+			}
+			drawPreview();
+		}
+
+		function randDice() {
+			return Math.floor(Math.random() * 6) + 1;
+		}
+
+		function shuffle(arr) {
+			for (let i = arr.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[arr[i], arr[j]] = [arr[j], arr[i]];
+			}
+			return arr;
+		}
+
+		function loop(timestamp) {
+			if (!isRunning) return;
+			if (timestamp - lastDrop >= dropInterval) {
+				step();
+				lastDrop = timestamp;
+			}
+			draw();
+			requestAnimationFrame(loop);
+		}
+
+		function step() {
+			if (!move(0, 1)) {
+				merge();
+				resolveClears();
+				spawnPiece();
+			}
+		}
+
+		function move(dx, dy) {
+			if (collides(current, dx, dy)) return false;
+			current.col += dx;
+			current.row += dy;
+			return true;
+		}
+
+		function rotate(dir) {
+			const rotatedShape = rotateMatrix(current.shape, dir);
+			const rotatedNums = rotateMatrix(current.nums, dir);
+			const originalCol = current.col;
+			// simple wall kicks: try shifts
+			const kicks = [0, -1, 1, -2, 2];
+			for (const k of kicks) {
+				const test = { ...current, shape: rotatedShape, nums: rotatedNums, col: originalCol + k };
+				if (!collides(test, 0, 0)) {
+					current.shape = rotatedShape;
+					current.nums = rotatedNums;
+					current.col = originalCol + k;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		function rotateMatrix(mat, dir) {
+			const size = mat.length;
+			const res = Array.from({ length: size }, () => Array(size).fill(0));
+			for (let r = 0; r < size; r++) {
+				for (let c = 0; c < size; c++) {
+					const val = mat[r][c];
+					if (dir === 1) {
+						res[c][size - 1 - r] = val;
+					} else {
+						res[size - 1 - c][r] = val;
+					}
+				}
+			}
+			return res;
+		}
+
+		function collides(piece, dx, dy) {
+			for (let r = 0; r < 4; r++) {
+				for (let c = 0; c < 4; c++) {
+					if (!piece.shape[r][c]) continue;
+					const nr = piece.row + r + dy;
+					const nc = piece.col + c + dx;
+					if (nc < 0 || nc >= COLS || nr >= ROWS) return true;
+					if (nr < 0) continue;
+					if (board[nr][nc] !== null) return true;
+				}
+			}
+			return false;
+		}
+
+		function merge() {
+			for (let r = 0; r < 4; r++) {
+				for (let c = 0; c < 4; c++) {
+					if (!current.shape[r][c]) continue;
+					const br = current.row + r;
+					const bc = current.col + c;
+					if (br >= 0 && br < ROWS && bc >= 0 && bc < COLS) {
+						board[br][bc] = current.nums[r][c];
+					}
+				}
+			}
+		}
+
+		function resolveClears() {
+			let totalAdded = 0;
+			let anyClear = false;
+			chain = 0;
+			while (true) {
+				const lineRows = findFullRows();
+				const matchSet = findNumberMatches();
+				if (lineRows.length === 0 && matchSet.size === 0) break;
+				chain++;
+				anyClear = true;
+
+				const toClear = new Set();
+				lineRows.forEach((r) => {
+					for (let c = 0; c < COLS; c++) {
+						const key = `${r},${c}`;
+						if (!stageBlocks.has(key)) toClear.add(key);
+					}
+				});
+				matchSet.forEach((key) => {
+					if (!stageBlocks.has(key)) toClear.add(key);
+				});
+
+				const cleared = toClear.size;
+				const lineScore = lineRows.length * 100;
+				const numberScore = matchSet.size * 12;
+				const chainBonus = 1 + (chain - 1) * 0.5;
+				totalAdded += Math.floor((lineScore + numberScore) * chainBonus);
+
+				toClear.forEach((key) => {
+					const [r, c] = key.split(",").map(Number);
+					board[r][c] = null;
+				});
+				applyGravity();
+			}
+
+			if (anyClear) {
+				if (isBoardEmpty()) {
+					totalAdded += 1500;
+					logEl.textContent = "全消しボーナス！";
+				} else {
+					logEl.textContent = `${chain}連鎖！`;
+				}
+			} else {
+				logEl.textContent = "";
+			}
+
+			score += totalAdded;
+			updateStageAndSpeed();
+			updateDisplays();
+		}
+
+		function isBoardEmpty() {
+			return board.every((row) => row.every((cell) => cell === null));
+		}
+
+		function applyGravity() {
+			for (let c = 0; c < COLS; c++) {
+				const movable = [];
+				// collect movable blocks (ステージ構成ブロックは除外)
+				for (let r = 0; r < ROWS; r++) {
+					const key = `${r},${c}`;
+					if (stageBlocks.has(key)) continue;
+					const val = board[r][c];
+					if (val !== null) movable.push(val);
+				}
+				// rebuild column from bottom, keeping stage blocks fixed
+				for (let r = ROWS - 1; r >= 0; r--) {
+					const key = `${r},${c}`;
+					if (stageBlocks.has(key)) continue; // keep existing stage block and position
+					board[r][c] = movable.shift() ?? null;
+				}
+			}
+		}
+
+		function findFullRows() {
+			const rows = [];
+			for (let r = 0; r < ROWS; r++) {
+				let hasStageBlock = false;
+				let isFullLine = true;
+				for (let c = 0; c < COLS; c++) {
+					if (stageBlocks.has(`${r},${c}`)) {
+						hasStageBlock = true;
+					}
+					if (board[r][c] === null) {
+						isFullLine = false;
+					}
+				}
+				if (isFullLine && !hasStageBlock) rows.push(r);
+			}
+			return rows;
+		}
+
+		function findNumberMatches() {
+			const toClear = new Set();
+			// horizontal runs
+			for (let r = 0; r < ROWS; r++) {
+				let c = 0;
+				while (c < COLS) {
+					const val = board[r][c];
+					if (val === null) { c++; continue; }
+					let end = c + 1;
+					while (end < COLS && board[r][end] === val) end++;
+					if (end - c >= 4) {
+						let hasStageBlock = false;
+						for (let x = c; x < end; x++) {
+							if (stageBlocks.has(`${r},${x}`)) {
+								hasStageBlock = true;
+								break;
+							}
+						}
+						if (!hasStageBlock) {
+							for (let x = c; x < end; x++) toClear.add(`${r},${x}`);
+						}
+					}
+					c = end;
+				}
+			}
+			// vertical runs
+			for (let c = 0; c < COLS; c++) {
+				let r = 0;
+				while (r < ROWS) {
+					const val = board[r][c];
+					if (val === null) { r++; continue; }
+					let end = r + 1;
+					while (end < ROWS && board[end][c] === val) end++;
+					if (end - r >= 4) {
+						let hasStageBlock = false;
+						for (let y = r; y < end; y++) {
+							if (stageBlocks.has(`${y},${c}`)) {
+								hasStageBlock = true;
+								break;
+							}
+						}
+						if (!hasStageBlock) {
+							for (let y = r; y < end; y++) toClear.add(`${y},${c}`);
+						}
+					}
+					r = end;
+				}
+			}
+			return toClear;
+		}
+
+		function updateStageAndSpeed() {
+			if (mode === "stage" && score >= targetScore) {
+				stage++;
+				targetScore += 2000 * stage;
+				applyStagePattern(stage);
+				logEl.textContent = `ステージ${stage}クリア！ 次へ`;
+			}
+			const speedFactor = 1 + (stage - 1) * 0.1 + Math.min(0.6, score / 20000);
+			dropInterval = Math.max(180, DROP_BASE / speedFactor);
+			speedEl.textContent = `${(DROP_BASE / dropInterval).toFixed(2)}x`;
+			targetEl.textContent = mode === "stage" ? targetScore : "∞";
+		}
+
+		function hardDrop() {
+			let steps = 0;
+			while (!collides(current, 0, 1)) {
+				current.row++;
+				steps++;
+			}
+			score += steps * 2;
+			merge();
+			resolveClears();
+			spawnPiece();
+		}
+
+		function rerollNumbers() {
+			// reroll only while piece is falling
+			for (let r = 0; r < 4; r++) {
+				for (let c = 0; c < 4; c++) {
+					if (current.shape[r][c]) {
+						current.nums[r][c] = randDice();
+					}
+				}
+			}
+			logEl.textContent = "数字を振り直し！";
+			draw();
+		}
+
+		function draw() {
+			const cells = BOARD_EL.children;
+			for (let r = 0; r < ROWS; r++) {
+				for (let c = 0; c < COLS; c++) {
+					const idx = r * COLS + c;
+					const div = cells[idx];
+					const val = board[r][c];
+					div.textContent = val ?? "";
+					div.className = val !== null ? "cell filled" : "cell";
+				}
+			}
+
+			// ゴースト位置
+			const ghostRow = getGhostRow();
+			for (let r = 0; r < 4; r++) {
+				for (let c = 0; c < 4; c++) {
+					if (!current.shape[r][c]) continue;
+					const gr = ghostRow + r;
+					const gc = current.col + c;
+					if (gr >= 0 && gr < ROWS && gc >= 0 && gc < COLS) {
+						const idx = gr * COLS + gc;
+						cells[idx].classList.add("ghost");
+					}
+				}
+			}
+
+			// 現在ピース
+			for (let r = 0; r < 4; r++) {
+				for (let c = 0; c < 4; c++) {
+					if (!current.shape[r][c]) continue;
+					const br = current.row + r;
+					const bc = current.col + c;
+					if (br < 0 || br >= ROWS || bc < 0 || bc >= COLS) continue;
+					const idx = br * COLS + bc;
+					cells[idx].textContent = current.nums[r][c];
+					cells[idx].className = "cell filled";
+				}
+			}
+
+			updateDisplays();
+		}
+
+		function getGhostRow() {
+			let row = current.row;
+			while (!collides({ ...current, row }, 0, 1)) row++;
+			return row;
+		}
+
+		function drawPreview() {
+			renderPreview(PREVIEW_EL, nextQueue[0]);
+			renderPreview(PREVIEW2_EL, nextQueue[1]);
+		}
+
+		function renderPreview(container, shapeName) {
+			container.innerHTML = "";
+			const shape = SHAPES[shapeName];
+			for (let r = 0; r < 4; r++) {
+				for (let c = 0; c < 4; c++) {
+					const div = document.createElement("div");
+					div.className = "tiny-cell";
+					if (shape[r][c]) {
+						div.style.background = "linear-gradient(135deg, #8ff7c6, #7ee0ff)";
+						div.textContent = "?";
+					}
+					container.appendChild(div);
+				}
+			}
+		}
+
+		function updateDisplays() {
+			scoreEl.textContent = score;
+			chainEl.textContent = chain;
+			stageEl.textContent = stage;
+			speedEl.textContent = `${(DROP_BASE / dropInterval).toFixed(2)}x`;
+			targetEl.textContent = mode === "stage" ? targetScore : "∞";
+		}
+	</script>
+</body>
+</html>
